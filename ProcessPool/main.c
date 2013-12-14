@@ -20,6 +20,9 @@
 /* function declaration */
 void worker(int readpd, int writepd);
 void sigchld_handler(int sig);
+void create_pool(pid_t *pool, int size, int read_pd[][2], int write_pd[][2]);
+void destroy_pool(pid_t *pool, int size);
+int doWork(pid_t *pool, int size, int read_pd[][2], int write_pd[][2]);
 
 int main(int argc, const char * argv[])
 {
@@ -28,9 +31,6 @@ int main(int argc, const char * argv[])
     
     //process pool
     pid_t pool[POOL_SIZE];
-    
-    //marker buffer
-    int marker = 0;
     
     //parent write - children read
     int write_pd[POOL_SIZE][2];
@@ -42,8 +42,62 @@ int main(int argc, const char * argv[])
     
     debug_print("parent pid: %d\n", getpid());
     
-    //create the process pool
-    for (int i = 0; i < POOL_SIZE; i++) {
+    create_pool(pool, POOL_SIZE, read_pd, write_pd);
+    
+    int marker = doWork(pool, POOL_SIZE, read_pd, write_pd);
+    printf("[%d] all done. marker value: %d\n", (unsigned)time(NULL), marker);
+    
+    destroy_pool(pool, POOL_SIZE);
+    return EXIT_SUCCESS;
+}
+
+
+void sigchld_handler(int sig)
+{
+    pid_t p;
+    int status;
+    
+    while ((p = waitpid(-1, &status, WNOHANG)) > 0) {
+        /* Handle the death of pid p */
+        debug_print("[%d] handling signal %d of: %d\n", (unsigned)time(NULL), sig, p);
+    }
+}
+
+void worker(int readpd, int writepd)
+{
+    int marker;
+    
+    //worker main loop, never quit
+    //worker quits when SIGQUIT is received
+    while (1) {
+        //wait parent commands, this also send SIGCHLD to parent so it knows we're ready
+//        debug_print("[%d] worker with pid: %d waiting parent signal ...\n", (unsigned)time(NULL), getpid());
+//        if (kill(getpid(), SIGSTOP)) {
+//            perror("kill");
+//            exit(EXIT_FAILURE);
+//        }
+        
+        //waked up - do some stuff
+        debug_print("[%d] worker with pid: %d waiting parent to write ... \n", (unsigned)time(NULL), getpid());
+        if (sizeof(marker) != read(readpd, &marker, sizeof(marker))) {
+            fprintf(stderr, "[%d] worker with pid: %d - error reading from pipe\n", (unsigned)time(NULL), getpid());
+            perror("read");
+            exit(EXIT_FAILURE);
+        }
+        
+        marker++;
+        
+        if(sizeof(marker) != write(writepd, &marker, sizeof(marker))) {
+            debug_print("[%d] worker with pid: %d - error writting to pipe\n", (unsigned)time(NULL), getpid());
+            perror("write");
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
+void create_pool(pid_t *pool, int size, int read_pd[][2], int write_pd[][2])
+{
+    for (int i = 0; i < size; i++) {
         //initialize pipes
         pipe(write_pd[i]);
         pipe(read_pd[i]);
@@ -61,7 +115,7 @@ int main(int argc, const char * argv[])
             close(read_pd[i][1]);
             
             //wait child to setup
-//            pause();
+            //            pause();
         } else { //child
             close(write_pd[i][1]);
             close(read_pd[i][0]);
@@ -73,18 +127,35 @@ int main(int argc, const char * argv[])
     }
     
     debug_print("[%d] all children ready and wating parent\n", (unsigned)time(NULL));
-    debug_print("[%d] sending signals from parent ...\n", (unsigned)time(NULL));
-    debug_print("%s------------------------------------------------\n", "");
+}
+
+void destroy_pool(pid_t *pool, int size)
+{
+    //kill all children
+    for (int i = 0; i < size; i++) {
+        if (kill(pool[i], SIGINT)) {
+            perror("kill");
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
+int doWork(pid_t *pool, int size, int read_pd[][2], int write_pd[][2])
+{
+    debug_print("[%d] synchronously loop the marker ...\n", (unsigned)time(NULL));
+    
+    //marker buffer
+    int marker = 0;
     
     for (int j = 0; j < 10; j++) {
-        for (int i = 0; i < POOL_SIZE; i++) {
+        for (int i = 0; i < size; i++) {
             debug_print("[%d] wakeup child: %d\n", (unsigned)time(NULL), pool[i]);
             
             //send signal to wake up the child
-//            if (kill(pool[i], SIGCONT)) {
-//                perror("kill");
-//                exit(EXIT_FAILURE);
-//            }
+            //            if (kill(pool[i], SIGCONT)) {
+            //                perror("kill");
+            //                exit(EXIT_FAILURE);
+            //            }
             
             //send the marker to child, when it's done it writes it back
             //read/write are blocking, so parent wait until child is done and written to the pipe
@@ -104,58 +175,7 @@ int main(int argc, const char * argv[])
         }
     }
     
-    //kill all children
-    for (int i = 0; i < POOL_SIZE; i++) {
-        if (kill(pool[i], SIGINT)) {
-            perror("kill");
-            exit(EXIT_FAILURE);
-        }
-    }
-    
-    printf("[%d] all done. marker value: %d\n", (unsigned)time(NULL), marker);
-    return EXIT_SUCCESS;
+    return marker;
 }
 
-void worker(int readpd, int writepd)
-{
-    int marker;
-    
-    //worker main loop, never quit
-    //worker quits when SIGQUIT is received
-    while (1) {
-        debug_print("[%d] worker with pid: %d waiting parent signal ...\n", (unsigned)time(NULL), getpid());
-        
-        //wait parent commands, this also send SIGCHLD to parent so it knows we're ready
-//        if (kill(getpid(), SIGSTOP)) {
-//            perror("kill");
-//            exit(EXIT_FAILURE);
-//        }
-        
-        //waked up - do some stuff
-        debug_print("[%d] worker with pid: %d working ... \n", (unsigned)time(NULL), getpid());
-        if (sizeof(marker) != read(readpd, &marker, sizeof(marker))) {
-            fprintf(stderr, "[%d] worker with pid: %d - error reading from pipe\n", (unsigned)time(NULL), getpid());
-            perror("read");
-            exit(EXIT_FAILURE);
-        }
-        
-        marker++;
-        
-        if(sizeof(marker) != write(writepd, &marker, sizeof(marker))) {
-            debug_print("[%d] worker with pid: %d - error writting to pipe\n", (unsigned)time(NULL), getpid());
-            perror("write");
-            exit(EXIT_FAILURE);
-        }
-    }
-}
 
-void sigchld_handler(int sig)
-{
-    pid_t p;
-    int status;
-    
-    while ((p = waitpid(-1, &status, WNOHANG)) > 0) {
-        /* Handle the death of pid p */
-        debug_print("[%d] handling signal %d of: %d\n", (unsigned)time(NULL), sig, p);
-    }
-}
