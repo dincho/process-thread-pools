@@ -9,9 +9,19 @@
 			<key>orderHint</key>
 			<integer>0</integer>
 		</dict>
+		<key>ThreadPool.xcscheme</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>1</integer>
+		</dict>
 	</dict>
 	<key>SuppressBuildableAutocreation</key>
 	<dict>
+		<key>5B8732AA18453CE8006B2E99</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
 		<key>5BDBAF4F18392E9400CCEBD1</key>
 		<dict>
 			<key>primary</key>
