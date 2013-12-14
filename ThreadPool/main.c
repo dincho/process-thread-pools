@@ -14,69 +14,96 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+#define DEBUG 0
+#define debug_print(fmt, ...) \
+do { if (DEBUG) fprintf(stderr, "%s():%d: " fmt,  __func__, __LINE__, __VA_ARGS__); } while (0)
+
 void *worker(void *arg);
 const int POOL_SIZE = 5;
 int marker = 0;
-sem_t *sem_free, *sem_work;
-pthread_mutex_t work_mutex = PTHREAD_MUTEX_INITIALIZER;
+sem_t *sem_done[POOL_SIZE], *sem_work[POOL_SIZE];
 
 int main(int argc, const char * argv[])
 {
     pthread_t pool[POOL_SIZE];
     
-    if((sem_free = sem_open("/tmp/sem_free", O_CREAT, 0644, 0)) == SEM_FAILED) {
-        perror("sem_open1"); //handle errno
-        exit(EXIT_FAILURE);
-    }
-    
-    if((sem_work = sem_open("/tmp/sem_work", O_CREAT, 0644, 0)) == SEM_FAILED) {
-        perror("sem_open2"); //handle errno
-        exit(EXIT_FAILURE);
-    }
-    
-    printf("parent pid: %d\n", getpid());
-    
     //create the process pool
     for (int i = 0; i < POOL_SIZE; i++) {
-        if (pthread_create(&pool[i], NULL, worker, (void *)i)) {
+
+        char sem_done_name[50];
+        sprintf(sem_done_name, "/tmp/sem_done%d", i);
+        
+        sem_unlink(sem_done_name);
+        if((sem_done[i] = sem_open(sem_done_name, O_CREAT, 0644, 0)) == SEM_FAILED) {
+            perror("sem_open1"); //handle errno
+            exit(EXIT_FAILURE);
+        }
+        
+        char sem_work_name[50];
+        sprintf(sem_work_name, "/tmp/sem_work%d", i);
+        
+        sem_unlink(sem_work_name);
+        if((sem_work[i] = sem_open(sem_work_name, O_CREAT, 0644, 0)) == SEM_FAILED) {
+            perror("sem_open2"); //handle errno
+            exit(EXIT_FAILURE);
+        }
+        
+        int *arg = malloc(sizeof(*arg));
+        *arg = i;
+        
+        if (pthread_create(&pool[i], NULL, worker, arg)) {
             perror("pthread_create");
             exit(EXIT_FAILURE);
         }
     }
     
-    if (sem_post(sem_work)) { //let the first thread work
-        perror("sem_post1");
-        exit(EXIT_FAILURE);
-    }
+    debug_print("[%d] pool created\n", (unsigned)time(NULL));
     
     for (int j = 0; j < 10; j++) {
         for (int i = 0; i < POOL_SIZE; i++) {
-            sem_wait(sem_free); //if there is free thread
-            sem_post(sem_work); //let it work
+            sem_post(sem_work[i]); //let it work
+            sem_wait(sem_done[i]); //wait it finish
+            //fprintf(stderr, "[%d] marker: %d\n", (unsigned)time(NULL), marker);
         }
     }
     
-    fprintf(stderr, "[%d] all done. marker value: %d\n", (unsigned)time(NULL), marker);
+    printf("[%d] all done. marker value: %d\n", (unsigned)time(NULL), marker);
     
-    sem_close(sem_work);
-    sem_unlink("/tmp/sem_work");
-    sem_close(sem_free);
-    sem_unlink("/tmp/sem_free");
+    for (int i = 0; i < POOL_SIZE; i++) {
+        //cancel the thread and wake up to it can exit
+        pthread_cancel(pool[i]);
+        sem_post(sem_work[i]);
+        
+        sem_close(sem_work[i]);
+        sem_close(sem_done[i]);
+    }
+    
+
     pthread_exit(NULL);
 }
 
 void *worker(void *arg)
 {
     //worker main loop, never quit
-    int id = (int)arg;
+    int i = *((int *)arg);
     
     while (1) {
-        fprintf(stderr, "[%d] worker: %d waiting parent ...\n", (unsigned)time(NULL), id);
+        debug_print("[%d] worker: %d waiting parent ...\n", (unsigned)time(NULL), i);
         
-        sem_wait(sem_work);
-        fprintf(stderr, "[%d] worker: %d working ...\n", (unsigned)time(NULL), id);
+        if (-1 == sem_wait(sem_work[i])) {
+            perror("sem_wait");
+            exit(EXIT_FAILURE);
+        }
+        
+        pthread_testcancel();
+        
+        debug_print("[%d] worker: %d working ...\n", (unsigned)time(NULL), i);
         marker++;
-//        sem_post(sem_free);
+        
+        if (-1 == sem_post(sem_done[i])) {
+            perror("sem_post");
+            exit(EXIT_FAILURE);
+        }
     }
 }
 
