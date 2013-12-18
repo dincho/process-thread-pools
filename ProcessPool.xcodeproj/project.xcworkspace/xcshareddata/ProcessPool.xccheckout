@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>A5027C4C-8D77-48ED-867D-1A0859CF0777</string>
+	<key>IDESourceControlProjectName</key>
+	<string>ProcessPool</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>0D5F6CB0-D688-4EAE-A25D-DECC3DB0047A</key>
+		<string>https://github.com/dincho/process-thread-pools.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>ProcessPool.xcodeproj/project.xcworkspace</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>0D5F6CB0-D688-4EAE-A25D-DECC3DB0047A</key>
+		<string>../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/dincho/process-thread-pools.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>110</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>0D5F6CB0-D688-4EAE-A25D-DECC3DB0047A</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>0D5F6CB0-D688-4EAE-A25D-DECC3DB0047A</string>
+			<key>IDESourceControlWCCName</key>
+			<string>ProcessPool</string>
+		</dict>
+	</array>
+</dict>
+</plist>
